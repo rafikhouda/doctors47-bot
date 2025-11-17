@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env
+.venv/
+
+# Editor directories and files
+.vscode/
+.idea/
+
+# Database
+doctors.db
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Byte-compiled / distribution
+build/
+dist/
+
+# Secrets
+config.py
