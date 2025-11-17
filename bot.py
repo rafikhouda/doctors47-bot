@@ -2,7 +2,7 @@ from telegram.ext import Application, MessageHandler, CommandHandler, Conversati
 from config import BOT_TOKEN
 from database.doctors_db import init_db
 
-from handlers.start_handler import start, info_handler, myid, export_doctors, delete_doctor_cmd
+from handlers.start_handler import start, info_handler, myid, export_doctors, delete_doctor_cmd, import_doctors_cmd
 from handlers.search_handler import handle_search, start_search_name, start_search_specialty
 from handlers.list_handler import list_doctors
 from handlers.add_handler import (
@@ -40,6 +40,7 @@ def main():
     app.add_handler(CommandHandler("myid", myid))
     app.add_handler(CommandHandler("export_doctors", export_doctors))
     app.add_handler(CommandHandler("delete_doctor", delete_doctor_cmd))
+    app.add_handler(CommandHandler("import_doctors", import_doctors_cmd))
 
     # Fallback: any other text is treated as a search query
     app.add_handler(MessageHandler(filters.TEXT, handle_search))
