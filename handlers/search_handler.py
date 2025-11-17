@@ -1,8 +1,10 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
-from database.doctors_db import search, get_specialties
+from database.doctors_db import search, get_specialties, add_doctor
 from handlers.start_handler import MAIN_MENU
+from config import ADMIN_IDS
 from typing import List
+import io
 
 async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text.strip()
@@ -65,3 +67,50 @@ async def start_search_specialty(update: Update, context: ContextTypes.DEFAULT_T
         "🔎 اختر التخصص أو اكتب تَخصُّصًا:",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
     )
+
+
+async def handle_document_import(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle document uploads for import_doctors command."""
+    if update.effective_user.id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ لا تملك صلاحية الاستيراد.")
+        return
+
+    if not update.message.document:
+        return
+
+    try:
+        doc = update.message.document
+        file = await context.bot.get_file(doc.file_id)
+        
+        # استخدم download_to_memory مع BytesIO
+        bio = io.BytesIO()
+        await file.download_to_memory(out=bio)
+        bio.seek(0)
+        text = bio.read().decode("utf-8", errors="ignore")
+
+        imported = 0
+        lines = [l.strip() for l in text.splitlines()]
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if line.startswith("👨‍⚕️"):
+                name = line.replace("👨‍⚕️", "", 1).strip()
+                phone = ""
+                spec = ""
+
+                if i + 1 < len(lines) and lines[i + 1].startswith("📞"):
+                    phone = lines[i + 1].replace("📞", "", 1).strip()
+                if i + 2 < len(lines) and lines[i + 2].startswith("🏷️"):
+                    spec = lines[i + 2].replace("🏷️", "", 1).strip()
+
+                if name and phone and spec:
+                    add_doctor(name, phone, spec)
+                    imported += 1
+
+            i += 1
+
+        await update.message.reply_text(f"✅ تم استيراد {imported} طبيب(أطباء).")
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ خطأ: {str(e)}")
