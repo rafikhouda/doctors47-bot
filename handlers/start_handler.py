@@ -9,6 +9,7 @@ from telegram import Document
 
 MAIN_MENU = [
     ["🔍 بحث بالاسم", "🔍 بحث بالتخصص"],
+    ["🔍 بحث بالبلديات"],
     ["📋 جميع الأطباء", "➕ إضافة طبيب"],
     ["ℹ️ معلومات البوت"]
 ]
@@ -34,7 +35,7 @@ async def export_doctors(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Only admins should call this; the check is done in bot registration
     data = list_all()
     header = "📋 جميع الأطباء:\n\n"
-    full_text = header + "".join([f"👨‍⚕️ {n}\n📞 {p}\n🏷️ {s}\n---------------------\n" for n, p, s in data])
+    full_text = header + "".join([f"👨‍⚕️ {n}\n📞 {p}\n🏷️ {s}\n📍 {m}\n---------------------\n" for n, p, s, m in data])
 
     bio = io.BytesIO()
     bio.write(full_text.encode("utf-8"))

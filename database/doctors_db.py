@@ -10,28 +10,36 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         phone TEXT NOT NULL,
-        specialty TEXT NOT NULL
+        specialty TEXT NOT NULL,
+        municipality TEXT NOT NULL DEFAULT ''
     )
     """)
     conn.commit()
     conn.close()
 
-def add_doctor(name, phone, specialty):
+def add_doctor(name, phone, specialty, municipality):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    cur.execute("INSERT INTO doctors (name, phone, specialty) VALUES (?, ?, ?)",
-                (name, phone, specialty))
+    cur.execute("INSERT INTO doctors (name, phone, specialty, municipality) VALUES (?, ?, ?, ?)",
+                (name, phone, specialty, municipality))
     conn.commit()
     conn.close()
 
-def search(query):
+def search(query, municipality=None):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    cur.execute("""
-        SELECT name, phone, specialty 
-        FROM doctors 
-        WHERE name LIKE ? OR specialty LIKE ?
-    """, (f"%{query}%", f"%{query}%"))
+    if municipality and municipality != "جميع البلديات":
+        cur.execute("""
+            SELECT name, phone, specialty, municipality
+            FROM doctors
+            WHERE (name LIKE ? OR specialty LIKE ?) AND municipality = ?
+        """, (f"%{query}%", f"%{query}%", municipality))
+    else:
+        cur.execute("""
+            SELECT name, phone, specialty, municipality
+            FROM doctors
+            WHERE name LIKE ? OR specialty LIKE ?
+        """, (f"%{query}%", f"%{query}%"))
     result = cur.fetchall()
     conn.close()
     return result
@@ -39,7 +47,7 @@ def search(query):
 def list_all():
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    cur.execute("SELECT name, phone, specialty FROM doctors ORDER BY specialty")
+    cur.execute("SELECT name, phone, specialty, municipality FROM doctors ORDER BY specialty")
     result = cur.fetchall()
     conn.close()
     return result

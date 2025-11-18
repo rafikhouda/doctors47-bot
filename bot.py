@@ -3,11 +3,11 @@ from config import BOT_TOKEN
 from database.doctors_db import init_db
 
 from handlers.start_handler import start, info_handler, myid, export_doctors, delete_doctor_cmd, import_doctors_cmd
-from handlers.search_handler import handle_search, start_search_name, start_search_specialty, handle_document_import
+from handlers.search_handler import handle_search, start_search_name, start_search_specialty, handle_document_import, start_search_municipality
 from handlers.list_handler import list_doctors
 from handlers.add_handler import (
-    start_add, get_name, get_phone, get_specialty,
-    NAME, PHONE, SPECIALTY
+    start_add, get_name, get_phone, get_specialty, get_municipality,
+    NAME, PHONE, SPECIALTY, MUNICIPALITY
 )
 
 def main():
@@ -23,6 +23,7 @@ def main():
             NAME: [MessageHandler(filters.TEXT, get_name)],
             PHONE: [MessageHandler(filters.TEXT, get_phone)],
             SPECIALTY: [MessageHandler(filters.TEXT, get_specialty)],
+            MUNICIPALITY: [MessageHandler(filters.TEXT, get_municipality)],
         },
         fallbacks=[],
     )
@@ -33,6 +34,7 @@ def main():
     # Menu button handlers (registered before the generic TEXT handler)
     app.add_handler(MessageHandler(filters.Regex(r"^🔍 بحث بالاسم$"), start_search_name))
     app.add_handler(MessageHandler(filters.Regex(r"^🔍 بحث بالتخصص$"), start_search_specialty))
+    app.add_handler(MessageHandler(filters.Regex(r"^🔍 بحث بالبلديات$"), start_search_municipality))
     app.add_handler(MessageHandler(filters.Regex(r"^📋 جميع الأطباء$"), list_doctors))
     app.add_handler(MessageHandler(filters.Regex(r"^ℹ️ معلومات البوت$"), info_handler))
 

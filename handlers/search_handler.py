@@ -6,28 +6,53 @@ from config import ADMIN_IDS
 from typing import List
 import io
 
+# قائمة البلديات
+MUNICIPALITIES = [
+    "جميع البلديات",
+    "منصورة",
+    "غرداية",
+    "ضاية بن ضحوة",
+    "متليلي",
+    "القرارة",
+    "العطف",
+    "زلفانة",
+    "سبسب",
+    "بونورة",
+    "بريان"
+]
+
 async def handle_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text.strip()
     # Global cancel: if the user sends 'إلغاء' at any time, return to main menu
     if query == "إلغاء":
         context.user_data.pop("awaiting_search", None)
         context.user_data.pop("search_kind", None)
+        context.user_data.pop("selected_municipality", None)
         await update.message.reply_text("أنت في الصفحة الرئيسية", reply_markup=ReplyKeyboardMarkup(MAIN_MENU, resize_keyboard=True))
         return
 
     # If we were waiting for a search input (triggered by a menu button), clear the flag
     context.user_data.pop("awaiting_search", None)
-    context.user_data.pop("search_kind", None)
+    search_kind = context.user_data.pop("search_kind", None)
+    
+    # للبحث حسب البلدية
+    if search_kind == "municipality":
+        context.user_data["selected_municipality"] = query
+        await update.message.reply_text("🔎 أدخل اسم الطبيب أو التخصص للبحث في البلدية المختارة:")
+        context.user_data["awaiting_search"] = True
+        return
 
-    results = search(query)
+    # للبحث العادي
+    municipality = context.user_data.pop("selected_municipality", None)
+    results = search(query, municipality)
 
     if not results:
         await update.message.reply_text("❌ لم يتم العثور على نتائج.")
         return
 
     text = "🔎 *نتائج البحث:*\n\n"
-    for n, p, s in results:
-        text += f"👨‍⚕️ *الاسم:* {n}\n📞 {p}\n🏷️ {s}\n---------------------\n"
+    for n, p, s, m in results:
+        text += f"👨‍⚕️ *الاسم:* {n}\n📞 {p}\n🏷️ {s}\n📍 {m}\n---------------------\n"
 
     await update.message.reply_text(text)
 
@@ -69,6 +94,19 @@ async def start_search_specialty(update: Update, context: ContextTypes.DEFAULT_T
     )
 
 
+async def start_search_municipality(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # عرض كيبورد البلديات
+    context.user_data["awaiting_search"] = True
+    context.user_data["search_kind"] = "municipality"
+    
+    keyboard = [[mun] for mun in MUNICIPALITIES]
+    keyboard.append(["إلغاء"])
+    await update.message.reply_text(
+        "🔎 اختر البلدية:",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+    )
+
+
 async def handle_document_import(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle document uploads for import_doctors command."""
     if update.effective_user.id not in ADMIN_IDS:
@@ -98,14 +136,17 @@ async def handle_document_import(update: Update, context: ContextTypes.DEFAULT_T
                 name = line.replace("👨‍⚕️", "", 1).strip()
                 phone = ""
                 spec = ""
+                municipality = ""
 
                 if i + 1 < len(lines) and lines[i + 1].startswith("📞"):
                     phone = lines[i + 1].replace("📞", "", 1).strip()
                 if i + 2 < len(lines) and lines[i + 2].startswith("🏷️"):
                     spec = lines[i + 2].replace("🏷️", "", 1).strip()
+                if i + 3 < len(lines) and lines[i + 3].startswith("📍"):
+                    municipality = lines[i + 3].replace("📍", "", 1).strip()
 
                 if name and phone and spec:
-                    add_doctor(name, phone, spec)
+                    add_doctor(name, phone, spec, municipality)
                     imported += 1
 
             i += 1

@@ -27,8 +27,8 @@ async def list_doctors(update: Update, context: ContextTypes.DEFAULT_TYPE):
     header = "📋 *جميع الأطباء:*\n\n"
     # Build full text and chunk it; keep full_text as fallback
     entries: List[str] = []
-    for n, p, s in data:
-        entries.append(f"👨‍⚕️ {n}\n📞 {p}\n🏷️ {s}\n---------------------\n")
+    for n, p, s, m in data:
+        entries.append(f"👨‍⚕️ {n}\n📞 {p}\n🏷️ {s}\n📍 {m}\n---------------------\n")
 
     full_text = header + "".join(entries)
 
