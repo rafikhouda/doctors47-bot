@@ -63,6 +63,16 @@ def delete_doctor(name):
     return deleted_count
 
 
+def doctor_exists(name: str, phone: str) -> bool:
+    """Return True if a doctor with same name or phone exists."""
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM doctors WHERE name = ? OR phone = ? LIMIT 1", (name, phone))
+    res = cur.fetchone()
+    conn.close()
+    return res is not None
+
+
 def get_specialties():
     """Return a sorted list of distinct specialties in the database."""
     conn = sqlite3.connect(DB_NAME)

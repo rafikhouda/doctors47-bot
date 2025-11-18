@@ -1,10 +1,12 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
-from database.doctors_db import search, get_specialties, add_doctor
+from database.doctors_db import search, get_specialties, add_doctor, doctor_exists
 from handlers.start_handler import MAIN_MENU
 from config import ADMIN_IDS
 from typing import List
 import io
+import openpyxl
+import xlrd
 
 # قائمة البلديات
 MUNICIPALITIES = [
@@ -124,9 +126,184 @@ async def handle_document_import(update: Update, context: ContextTypes.DEFAULT_T
         bio = io.BytesIO()
         await file.download_to_memory(out=bio)
         bio.seek(0)
-        text = bio.read().decode("utf-8", errors="ignore")
+        filename = (doc.file_name or "").lower()
 
         imported = 0
+        skipped_duplicates = 0
+        invalid_rows = 0
+        parse_errors = 0
+        total_rows = 0
+        skipped_examples = []
+
+        # If Excel file (.xlsx) — parse with openpyxl
+        if filename.endswith('.xlsx'):
+            try:
+                bio.seek(0)
+                wb = openpyxl.load_workbook(bio, data_only=True)
+                sheet = wb.active
+                rows = list(sheet.iter_rows(values_only=True))
+                if not rows:
+                    await update.message.reply_text("⚠️ ملف الإكسل فارغ.")
+                    return
+
+                # detect header row
+                header = [str(c).strip() if c is not None else "" for c in rows[0]]
+                header_lower = [h.lower() for h in header]
+
+                def col_index(names):
+                    for n in names:
+                        if n in header_lower:
+                            return header_lower.index(n)
+                    return None
+
+                name_col = col_index(["الاسم", "اسم", "name"]) 
+                phone_col = col_index(["الهاتف", "هاتف", "رقم الهاتف", "phone", "phone number"]) 
+                spec_col = col_index(["التخصص", "تخصص", "specialty"]) 
+                muni_col = col_index(["البلدية", "municipality"]) 
+
+                start_row = 1 if name_col is not None or phone_col is not None or spec_col is not None else 0
+
+                for r in rows[start_row:]:
+                    vals = [str(v).strip() if v is not None else "" for v in r]
+                    total_rows += 1
+
+                    if name_col is not None:
+                        name = vals[name_col]
+                    else:
+                        name = vals[0] if len(vals) > 0 else ""
+
+                    if phone_col is not None:
+                        phone = vals[phone_col]
+                    else:
+                        phone = vals[1] if len(vals) > 1 else ""
+
+                    if spec_col is not None:
+                        spec = vals[spec_col]
+                    else:
+                        spec = vals[2] if len(vals) > 2 else ""
+
+                    if muni_col is not None:
+                        municipality = vals[muni_col]
+                    else:
+                        municipality = vals[3] if len(vals) > 3 else ""
+
+                    if not (name and phone and spec):
+                        invalid_rows += 1
+                        if len(skipped_examples) < 5:
+                            skipped_examples.append((name, phone, spec, "incomplete"))
+                        continue
+
+                    # check duplicate
+                    try:
+                        if doctor_exists(name, phone):
+                            skipped_duplicates += 1
+                            if len(skipped_examples) < 5:
+                                skipped_examples.append((name, phone, spec, "duplicate"))
+                            continue
+                    except Exception:
+                        parse_errors += 1
+                        continue
+
+                    add_doctor(name, phone, spec, municipality)
+                    imported += 1
+
+                # summary report
+                report = [f"استيراد ملف الإكسل مكتمل:", f"- إجمالي صفوف: {total_rows}", f"- مستورَد: {imported}", f"- تم تجاهل التكرارات: {skipped_duplicates}", f"- صفوف غير صالحة: {invalid_rows}", f"- أخطاء معالجة: {parse_errors}"]
+                if skipped_examples:
+                    report.append("\nأمثلة للصفوف المتجاهَلة (حتى 5):")
+                    for ex in skipped_examples:
+                        report.append(f"  - {ex[0]} | {ex[1]} | {ex[2]} — {ex[3]}")
+
+                await update.message.reply_text("\n".join(report))
+                return
+            except Exception as ex:
+                await update.message.reply_text(f"❌ خطأ عند قراءة ملف الإكسل: {ex}")
+                return
+
+        # support old .xls files via xlrd
+        if filename.endswith('.xls'):
+            try:
+                bio.seek(0)
+                data = bio.getvalue()
+                wb = xlrd.open_workbook(file_contents=data)
+                sheet = wb.sheet_by_index(0)
+                rows = [sheet.row_values(i) for i in range(sheet.nrows)]
+                if not rows:
+                    await update.message.reply_text("⚠️ ملف الإكسل فارغ.")
+                    return
+
+                header = [str(c).strip() if c is not None else "" for c in rows[0]]
+                header_lower = [h.lower() for h in header]
+
+                def col_index(names):
+                    for n in names:
+                        if n in header_lower:
+                            return header_lower.index(n)
+                    return None
+
+                name_col = col_index(["الاسم", "اسم", "name"]) 
+                phone_col = col_index(["الهاتف", "هاتف", "رقم الهاتف", "phone", "phone number"]) 
+                spec_col = col_index(["التخصص", "تخصص", "specialty"]) 
+                muni_col = col_index(["البلدية", "municipality"]) 
+
+                start_row = 1 if name_col is not None or phone_col is not None or spec_col is not None else 0
+
+                for r in rows[start_row:]:
+                    vals = [str(v).strip() if v is not None else "" for v in r]
+                    total_rows += 1
+
+                    if name_col is not None:
+                        name = vals[name_col]
+                    else:
+                        name = vals[0] if len(vals) > 0 else ""
+
+                    if phone_col is not None:
+                        phone = vals[phone_col]
+                    else:
+                        phone = vals[1] if len(vals) > 1 else ""
+
+                    if spec_col is not None:
+                        spec = vals[spec_col]
+                    else:
+                        spec = vals[2] if len(vals) > 2 else ""
+
+                    if muni_col is not None:
+                        municipality = vals[muni_col]
+                    else:
+                        municipality = vals[3] if len(vals) > 3 else ""
+
+                    if not (name and phone and spec):
+                        invalid_rows += 1
+                        if len(skipped_examples) < 5:
+                            skipped_examples.append((name, phone, spec, "incomplete"))
+                        continue
+
+                    try:
+                        if doctor_exists(name, phone):
+                            skipped_duplicates += 1
+                            if len(skipped_examples) < 5:
+                                skipped_examples.append((name, phone, spec, "duplicate"))
+                            continue
+                    except Exception:
+                        parse_errors += 1
+                        continue
+
+                    add_doctor(name, phone, spec, municipality)
+                    imported += 1
+
+                report = [f"استيراد ملف الإكسل (.xls) مكتمل:", f"- إجمالي صفوف: {total_rows}", f"- مستورَد: {imported}", f"- تم تجاهل التكرارات: {skipped_duplicates}", f"- صفوف غير صالحة: {invalid_rows}", f"- أخطاء معالجة: {parse_errors}"]
+                if skipped_examples:
+                    report.append("\nأمثلة للصفوف المتجاهَلة (حتى 5):")
+                    for ex in skipped_examples:
+                        report.append(f"  - {ex[0]} | {ex[1]} | {ex[2]} — {ex[3]}")
+                await update.message.reply_text("\n".join(report))
+                return
+            except Exception as ex:
+                await update.message.reply_text(f"❌ خطأ عند قراءة ملف الإكسل (.xls): {ex}")
+                return
+
+        # Otherwise, treat as plain text (existing format)
+        text = bio.read().decode("utf-8", errors="ignore")
         lines = [l.strip() for l in text.splitlines()]
 
         i = 0
